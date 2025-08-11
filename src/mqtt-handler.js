@@ -31,14 +31,23 @@ export async function startMqtt() {
   });
 
   client.on("message", async (topic, payload) => {
-    try {
-      const msg = JSON.parse(payload.toString());
-      if (typeof msg.temperature_c !== "number" || !msg.device_id) return;
-      writeReading(msg);
-    } catch (e) {
-      console.error("[mqtt] parse error", e.message);
+  try {
+    const msg = JSON.parse(payload.toString());
+    if (typeof msg.temperature_c !== "number" || !msg.device_id) return;
+
+    // If timestamp missing/way too old/way in future, use server time
+    const nowSec = Math.floor(Date.now() / 1000);
+    const yearSec = 365 * 24 * 3600;
+    if (!msg.timestamp || msg.timestamp < nowSec - yearSec || msg.timestamp > nowSec + 24 * 3600) {
+      msg.timestamp = nowSec;
     }
-  });
+
+    writeReading(msg);
+  } catch (e) {
+    console.error("[mqtt] parse error", e.message);
+  }
+});
+
 
   client.on("error", (e) => console.error("[mqtt] error", e.message));
   client.on("reconnect", () => console.log("[mqtt] reconnecting..."));
